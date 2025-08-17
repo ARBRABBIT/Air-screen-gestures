@@ -17,6 +17,7 @@ function App() {
   const [strokeColor, setStrokeColor] = useState<string>('#00E5FF')
   const [strokeSize, setStrokeSize] = useState<number>(6)
   const [drawWithPinch, setDrawWithPinch] = useState<boolean>(true)
+  const [mirrored, setMirrored] = useState<boolean>(true)
   const [drawingMode, setDrawingMode] = useState<DrawingMode>('pen')
   const [smoothing, setSmoothing] = useState<number>(0.7)
   const [pressureSensitivity, setPressureSensitivity] = useState<boolean>(true)
@@ -149,6 +150,7 @@ function App() {
   const handleStartStop = useCallback(async () => {
     if (isCameraOn) {
       stopCamera()
+      clearCanvas()
       return
     }
     if (!isModelReady) return
@@ -182,6 +184,7 @@ function App() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       stopCamera()
+      clearCanvas()
     }
   }, [stopCamera])
 
@@ -189,8 +192,8 @@ function App() {
     <div className="w-screen h-screen overflow-hidden bg-black text-white">
       <div className="absolute inset-0 grid place-items-center">
         <div className="relative w-full max-w-[95vw] h-[85vh] rounded-3xl overflow-hidden shadow-soft bg-neutral-950">
-          <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover opacity-50 z-0" playsInline muted></video>
-          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full z-10 pointer-events-none" />
+          <video ref={videoRef} className={`absolute inset-0 w-full h-full object-cover opacity-50 z-0 ${mirrored ? 'scale-x-[-1]' : ''}`} playsInline muted></video>
+          <canvas ref={canvasRef} className={`absolute inset-0 w-full h-full z-10 pointer-events-none ${mirrored ? 'scale-x-[-1]' : ''}`} />
           
           <StatusIndicators
             isCameraOn={isCameraOn}
@@ -216,6 +219,7 @@ function App() {
         strokeColor={strokeColor}
         strokeSize={strokeSize}
         drawWithPinch={drawWithPinch}
+        mirrored={mirrored}
         drawingMode={drawingMode}
         smoothing={smoothing}
         pressureSensitivity={pressureSensitivity}
@@ -225,6 +229,7 @@ function App() {
         onChangeColor={setStrokeColor}
         onChangeSize={(v: number) => setStrokeSize(v)}
         onTogglePinch={setDrawWithPinch}
+        onToggleMirror={setMirrored}
         onChangeMode={setDrawingMode}
         onChangeSmoothing={setSmoothing}
         onTogglePressure={setPressureSensitivity}

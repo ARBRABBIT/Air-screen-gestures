@@ -6,6 +6,7 @@ type Props = {
   strokeColor: string
   strokeSize: number
   drawWithPinch: boolean
+  mirrored: boolean
   drawingMode: DrawingMode
   smoothing: number
   pressureSensitivity: boolean
@@ -15,6 +16,7 @@ type Props = {
   onChangeColor: (color: string) => void
   onChangeSize: (size: number) => void
   onTogglePinch: (enabled: boolean) => void
+  onToggleMirror: (enabled: boolean) => void
   onChangeMode: (mode: DrawingMode) => void
   onChangeSmoothing: (smoothing: number) => void
   onTogglePressure: (enabled: boolean) => void
@@ -26,6 +28,7 @@ export function ControlsBar({
   strokeColor,
   strokeSize,
   drawWithPinch,
+  mirrored,
   drawingMode,
   smoothing,
   pressureSensitivity,
@@ -35,6 +38,7 @@ export function ControlsBar({
   onChangeColor,
   onChangeSize,
   onTogglePinch,
+  onToggleMirror,
   onChangeMode,
   onChangeSmoothing,
   onTogglePressure,
@@ -90,6 +94,16 @@ export function ControlsBar({
                 aria-label="Draw with pinch"
               />
               Draw with pinch
+            </label>
+            <label className="flex items-center gap-2 text-base text-neutral-200">
+              <input
+                type="checkbox"
+                checked={mirrored}
+                onChange={(e) => onToggleMirror(e.target.checked)}
+                className="accent-white scale-125"
+                aria-label="Mirror view"
+              />
+              Mirror
             </label>
           </div>
         </div>
