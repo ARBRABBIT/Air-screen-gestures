@@ -8,6 +8,33 @@ export function isPinching(indexTip: { x: number; y: number }, thumbTip: { x: nu
   return dist < 0.08
 }
 
+function distance(a: { x: number; y: number }, b: { x: number; y: number }) {
+  return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+// Returns pinch distance normalized by palm width so the threshold is scale-invariant
+export function normalizedPinchDistance(landmarks: Array<{ x: number; y: number }>): number {
+  const indexTip = landmarks[8]
+  const thumbTip = landmarks[4]
+  if (!indexTip || !thumbTip) return Number.POSITIVE_INFINITY
+
+  const tipDist = distance(indexTip, thumbTip)
+
+  // Palm width using index MCP (5) to pinky MCP (17) as a robust scaler
+  const palmA = landmarks[5]
+  const palmB = landmarks[17]
+  let palmWidth = palmA && palmB ? distance(palmA, palmB) : 0
+
+  // Fallback to wrist to middle MCP if needed
+  if (!palmWidth || palmWidth < 1e-5) {
+    const wrist = landmarks[0]
+    const middleMCP = landmarks[9]
+    palmWidth = wrist && middleMCP ? distance(wrist, middleMCP) : 0.2
+  }
+
+  return tipDist / Math.max(1e-5, palmWidth)
+}
+
 export function calculatePressure(
   landmarks: any[],
   isDrawing: boolean,

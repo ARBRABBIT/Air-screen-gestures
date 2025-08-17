@@ -88,3 +88,71 @@ export function resizeCanvasToContainer(canvas: HTMLCanvasElement) {
 }
 
 
+// MediaPipe hand connections as index pairs (subset for clarity; can be extended)
+const HAND_CONNECTIONS: Array<[number, number]> = [
+  // Palm
+  [0, 1], [1, 2], [2, 5], [5, 9], [9, 13], [13, 17], [17, 0],
+  // Thumb
+  [1, 2], [2, 3], [3, 4],
+  // Index
+  [5, 6], [6, 7], [7, 8],
+  // Middle
+  [9, 10], [10, 11], [11, 12],
+  // Ring
+  [13, 14], [14, 15], [15, 16],
+  // Pinky
+  [17, 18], [18, 19], [19, 20],
+]
+
+export type Landmark = { x: number; y: number }
+
+// Draws hand skeleton lines and fingertip dots for one or two hands
+export function drawHandOverlay(
+  canvas: HTMLCanvasElement,
+  hands: Array<Landmark[]>,
+  options?: { mirrored?: boolean }
+) {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  const { mirrored = false } = options ?? {}
+
+  ctx.save()
+  ctx.lineWidth = 2
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)'
+  ctx.fillStyle = 'red'
+
+  for (const landmarks of hands) {
+    // Draw connections
+    for (const [a, b] of HAND_CONNECTIONS) {
+      const p1 = landmarks[a]
+      const p2 = landmarks[b]
+      if (!p1 || !p2) continue
+
+      const x1 = (mirrored ? 1 - p1.x : p1.x) * canvas.width
+      const y1 = p1.y * canvas.height
+      const x2 = (mirrored ? 1 - p2.x : p2.x) * canvas.width
+      const y2 = p2.y * canvas.height
+
+      ctx.beginPath()
+      ctx.moveTo(x1, y1)
+      ctx.lineTo(x2, y2)
+      ctx.stroke()
+    }
+
+    // Draw red dots on all landmarks (smaller for non-tips)
+    for (let i = 0; i < landmarks.length; i++) {
+      const lm = landmarks[i]
+      const x = (mirrored ? 1 - lm.x : lm.x) * canvas.width
+      const y = lm.y * canvas.height
+      const radius = i % 4 === 0 ? 4 : 3
+      ctx.beginPath()
+      ctx.arc(x, y, radius, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+
+  ctx.restore()
+}
+
+

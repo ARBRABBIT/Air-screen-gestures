@@ -23,7 +23,7 @@ export function useHandLandmarker() {
         const vision = await FilesetResolver.forVisionTasks(wasmBaseUrl)
         const handLandmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: { modelAssetPath: modelUrl },
-          numHands: 1,
+          numHands: 2,
           runningMode: 'VIDEO',
         })
         if (!cancelled) {

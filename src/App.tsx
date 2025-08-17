@@ -2,14 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DrawingMode, Point } from './types'
 import { useHandLandmarker } from './hooks/useHandLandmarker'
 import { useCamera } from './hooks/useCamera'
-import { drawLine as drawLineUtil, resizeCanvasToContainer } from './utils/drawing'
-import { calculatePressure, isPinching } from './utils/gestures'
+import { drawLine as drawLineUtil, resizeCanvasToContainer, drawHandOverlay } from './utils/drawing'
+import { OneEuroFilter } from './utils/filters'
+import { calculatePressure, normalizedPinchDistance } from './utils/gestures'
 import ControlsBar from './components/ControlsBar'
 import StatusIndicators from './components/StatusIndicators'
 
 function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const euroFiltersRef = useRef<{ x: OneEuroFilter; y: OneEuroFilter } | null>(null)
   const { isModelReady, handLandmarkerRef } = useHandLandmarker()
   const { isCameraOn, startCamera, stopCamera, rafRef } = useCamera(videoRef)
   const lastPointRef = useRef<Point | null>(null)
@@ -26,15 +29,22 @@ function App() {
   const smoothingRef = useRef<number>(smoothing)
   const drawingModeRef = useRef<DrawingMode>(drawingMode)
   const drawWithPinchRef = useRef<boolean>(drawWithPinch)
+  const pinchStableRef = useRef<{ drawing: boolean; solidFrames: number; hollowFrames: number }>({ drawing: false, solidFrames: 0, hollowFrames: 0 })
 
   useEffect(() => { smoothingRef.current = smoothing }, [smoothing])
   useEffect(() => { drawingModeRef.current = drawingMode }, [drawingMode])
   useEffect(() => { drawWithPinchRef.current = drawWithPinch }, [drawWithPinch])
 
+  // Initialize adaptive filters
+  useEffect(() => {
+    euroFiltersRef.current = { x: new OneEuroFilter(1.2, 0.01, 1.0), y: new OneEuroFilter(1.2, 0.01, 1.0) }
+  }, [])
+
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
-    resizeCanvasToContainer(canvas)
+    const overlay = overlayCanvasRef.current
+    if (canvas) resizeCanvasToContainer(canvas)
+    if (overlay) resizeCanvasToContainer(overlay)
   }, [])
 
   useEffect(() => {
@@ -88,36 +98,85 @@ function App() {
       
       // REMOVED: resizeCanvasToVideo() - This was clearing the canvas every frame!
       const result = landmarker.detectForVideo(video, performance.now())
-      
-      const landmarks = result.landmarks?.[0]
+
+      // Draw skeleton overlay for one or two hands
+      const hands = result.landmarks ?? []
+      const overlayCanvas = overlayCanvasRef.current
+      if (overlayCanvas) {
+        const ctx = overlayCanvas.getContext('2d')
+        if (ctx) ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height)
+        if (hands.length > 0) drawHandOverlay(overlayCanvas, hands)
+      }
+
+      const landmarks = hands[0]
       
       if (landmarks && landmarks.length > 8) {
         const indexTip = landmarks[8]
-        const thumbTip = landmarks[4]
         
-        // Enhanced pinch detection with multiple finger support
-        const shouldDraw = !drawWithPinchRef.current || isPinching(indexTip, thumbTip)
+        // Hysteresis-based pinch detection using normalized threshold
+        let shouldDraw = true
+        if (drawWithPinchRef.current) {
+          const norm = normalizedPinchDistance(landmarks)
+          const pinching = norm < 0.55 // close threshold
+          const releasing = norm > 0.65 // open threshold (hysteresis)
+
+          const state = pinchStableRef.current
+          if (state.drawing) {
+            // require a few open frames to stop drawing
+            state.hollowFrames = releasing ? state.hollowFrames + 1 : 0
+            if (state.hollowFrames >= 3) {
+              state.drawing = false
+              state.solidFrames = 0
+            }
+          } else {
+            // require a few closed frames to start drawing
+            state.solidFrames = pinching ? state.solidFrames + 1 : 0
+            if (state.solidFrames >= 3) {
+              state.drawing = true
+              state.hollowFrames = 0
+            }
+          }
+          shouldDraw = state.drawing
+        }
         
         // Calculate pressure based on finger proximity and movement
         const pressure = calculatePressure(landmarks, shouldDraw, lastPointRef, canvasRef)
         
         const canvas = canvasRef.current
         if (canvas) {
-          const x = indexTip.x * canvas.width
-          const y = indexTip.y * canvas.height
+          // Use average of index tip (8) and DIP (7) for extra stability
+          const avgXNorm = (indexTip.x + landmarks[7].x) / 2
+          const avgYNorm = (indexTip.y + landmarks[7].y) / 2
+
+          // Apply One Euro filter in normalized space
+          const filters = euroFiltersRef.current
+          const t = performance.now() / 1000
+          const filteredXNorm = filters ? filters.x.filter(avgXNorm, t) : avgXNorm
+          const filteredYNorm = filters ? filters.y.filter(avgYNorm, t) : avgYNorm
+
+          const x = filteredXNorm * canvas.width
+          const y = filteredYNorm * canvas.height
           
           // Improved smoothing with configurable alpha
           // Map UI smoothing (0.1 sharp → 0.9 very smooth) to EMA alpha (weight of current)
           // Higher smoothing = lower alpha = more smoothing
           const alpha = 1 - smoothingRef.current
           const last = lastPointRef.current
-          const current: Point = last 
-            ? { 
-                x: last.x + (x - last.x) * alpha, 
-                y: last.y + (y - last.y) * alpha,
-                pressure 
-              } 
-            : { x, y, pressure }
+          const jitterPixels = Math.max(1.5, Math.min(canvas.width, canvas.height) * 0.002)
+          const distanceFromLast = last ? Math.hypot(x - last.x, y - last.y) : Infinity
+
+          let candidate: Point = { x, y, pressure }
+          if (last && distanceFromLast < jitterPixels) {
+            candidate = { x: last.x, y: last.y, pressure }
+          }
+
+          const current: Point = last
+            ? {
+                x: last.x + (candidate.x - last.x) * alpha,
+                y: last.y + (candidate.y - last.y) * alpha,
+                pressure,
+              }
+            : candidate
           
           if (shouldDraw && last) {
             drawLine(last, current, pressure, drawingModeRef.current)
@@ -194,6 +253,7 @@ function App() {
         <div className="relative w-full max-w-[95vw] h-[85vh] rounded-3xl overflow-hidden shadow-soft bg-neutral-950">
           <video ref={videoRef} className={`absolute inset-0 w-full h-full object-cover opacity-50 z-0 ${mirrored ? 'scale-x-[-1]' : ''}`} playsInline muted></video>
           <canvas ref={canvasRef} className={`absolute inset-0 w-full h-full z-10 pointer-events-none ${mirrored ? 'scale-x-[-1]' : ''}`} />
+          <canvas ref={overlayCanvasRef} className={`absolute inset-0 w-full h-full z-20 pointer-events-none ${mirrored ? 'scale-x-[-1]' : ''}`} />
           
           <StatusIndicators
             isCameraOn={isCameraOn}
