@@ -4,7 +4,7 @@ import { useHandLandmarker } from './hooks/useHandLandmarker'
 import { useCamera } from './hooks/useCamera'
 import { drawLine as drawLineUtil, resizeCanvasToContainer, drawHandOverlay } from './utils/drawing'
 import { OneEuroFilter } from './utils/filters'
-import { calculatePressure, normalizedPinchDistance } from './utils/gestures'
+import { calculatePressure, isIndexThumbPinching } from './utils/gestures'
 import ControlsBar from './components/ControlsBar'
 import StatusIndicators from './components/StatusIndicators'
 
@@ -29,7 +29,7 @@ function App() {
   const smoothingRef = useRef<number>(smoothing)
   const drawingModeRef = useRef<DrawingMode>(drawingMode)
   const drawWithPinchRef = useRef<boolean>(drawWithPinch)
-  const pinchStableRef = useRef<{ drawing: boolean; solidFrames: number; hollowFrames: number }>({ drawing: false, solidFrames: 0, hollowFrames: 0 })
+  const pinchStableRef = useRef<{ drawing: boolean; solidFrames: number; hollowFrames: number; lockedToIndex: boolean; nonIndexFrames: number }>({ drawing: false, solidFrames: 0, hollowFrames: 0, lockedToIndex: false, nonIndexFrames: 0 })
 
   useEffect(() => { smoothingRef.current = smoothing }, [smoothing])
   useEffect(() => { drawingModeRef.current = drawingMode }, [drawingMode])
@@ -113,27 +113,41 @@ function App() {
       if (landmarks && landmarks.length > 8) {
         const indexTip = landmarks[8]
         
-        // Hysteresis-based pinch detection using normalized threshold
+        // Hysteresis-based pinch detection using normalized threshold and ensuring index–thumb only
         let shouldDraw = true
         if (drawWithPinchRef.current) {
-          const norm = normalizedPinchDistance(landmarks)
-          const pinching = norm < 0.55 // close threshold
-          const releasing = norm > 0.65 // open threshold (hysteresis)
-
+          const { pinching, norm, closestTipIndex } = isIndexThumbPinching(landmarks)
+          const isIndexClosest = closestTipIndex === 8
           const state = pinchStableRef.current
+          
+          // lock to index if it is closest for a few frames
+          if (isIndexClosest) {
+            state.nonIndexFrames = 0
+          } else {
+            state.nonIndexFrames = Math.min(10, state.nonIndexFrames + 1)
+          }
+
+          const close = pinching && norm < 0.45
+          const release = !pinching || norm > 0.55 || state.nonIndexFrames >= 3
+
           if (state.drawing) {
             // require a few open frames to stop drawing
-            state.hollowFrames = releasing ? state.hollowFrames + 1 : 0
+            state.hollowFrames = release ? state.hollowFrames + 1 : 0
             if (state.hollowFrames >= 3) {
               state.drawing = false
               state.solidFrames = 0
+              state.lockedToIndex = false
             }
           } else {
             // require a few closed frames to start drawing
-            state.solidFrames = pinching ? state.solidFrames + 1 : 0
+            state.solidFrames = close ? state.solidFrames + 1 : 0
             if (state.solidFrames >= 3) {
               state.drawing = true
               state.hollowFrames = 0
+              state.lockedToIndex = true
+              // start a fresh stroke at pinch-down to avoid connecting lines
+              lastPointRef.current = null
+              pointsRef.current = []
             }
           }
           shouldDraw = state.drawing
@@ -187,7 +201,7 @@ function App() {
               pointsRef.current.shift()
             }
           } else {
-            // Reset points when not drawing
+            // Reset points when not drawing so the next stroke starts cleanly
             pointsRef.current = []
           }
           

@@ -35,6 +35,50 @@ export function normalizedPinchDistance(landmarks: Array<{ x: number; y: number 
   return tipDist / Math.max(1e-5, palmWidth)
 }
 
+// Normalized distance helper between any two landmarks
+export function normalizedDistance(
+  landmarks: Array<{ x: number; y: number }>,
+  aIndex: number,
+  bIndex: number
+): number {
+  const a = landmarks[aIndex]
+  const b = landmarks[bIndex]
+  if (!a || !b) return Number.POSITIVE_INFINITY
+  // Reuse palm-based normalization from normalizedPinchDistance
+  const palmA = landmarks[5]
+  const palmB = landmarks[17]
+  let palmWidth = palmA && palmB ? distance(palmA, palmB) : 0
+  if (!palmWidth || palmWidth < 1e-5) {
+    const wrist = landmarks[0]
+    const middleMCP = landmarks[9]
+    palmWidth = wrist && middleMCP ? distance(wrist, middleMCP) : 0.2
+  }
+  return distance(a, b) / Math.max(1e-5, palmWidth)
+}
+
+// Stricter check: ensure thumb is pinching specifically with index, not other fingers
+export function isIndexThumbPinching(landmarks: Array<{ x: number; y: number }>): {
+  pinching: boolean
+  norm: number
+  closestTipIndex: number | null
+} {
+  // Landmark indices: thumb tip 4, index tip 8, middle 12, ring 16, pinky 20
+  const distances: Array<{ tipIndex: number; norm: number }> = [8, 12, 16, 20].map((tipIndex) => ({
+    tipIndex,
+    norm: normalizedDistance(landmarks, 4, tipIndex),
+  }))
+
+  const closest = distances.reduce((min, cur) => (cur.norm < min.norm ? cur : min), {
+    tipIndex: null as unknown as number,
+    norm: Number.POSITIVE_INFINITY,
+  })
+
+  const closeThreshold = 0.40
+  const pinching = closest.tipIndex === 8 && closest.norm < closeThreshold
+
+  return { pinching, norm: closest.norm, closestTipIndex: closest.tipIndex }
+}
+
 export function calculatePressure(
   landmarks: any[],
   isDrawing: boolean,
