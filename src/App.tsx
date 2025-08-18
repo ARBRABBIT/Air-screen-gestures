@@ -4,7 +4,7 @@ import { useHandLandmarker } from './hooks/useHandLandmarker'
 import { useCamera } from './hooks/useCamera'
 import { drawLine as drawLineUtil, resizeCanvasToContainer, drawHandOverlay, drawQuadraticSegment } from './utils/drawing'
 import { OneEuroFilter } from './utils/filters'
-import { calculatePressure, isIndexThumbPinching } from './utils/gestures'
+import { calculatePressure, isIndexThumbPinching, isLikelyValidHand } from './utils/gestures'
 import ControlsBar from './components/ControlsBar'
 import StatusIndicators from './components/StatusIndicators'
 
@@ -17,6 +17,8 @@ function App() {
   const { isCameraOn, startCamera, stopCamera, rafRef } = useCamera(videoRef)
   const lastPointRef = useRef<Point | null>(null)
   const pointsRef = useRef<Point[]>([])
+  const timerRef = useRef<number | null>(null)
+  const videoFrameCbRef = useRef<number | null>(null)
   const [strokeColor, setStrokeColor] = useState<string>('#00E5FF')
   const [strokeSize, setStrokeSize] = useState<number>(6)
   const [drawWithPinch, setDrawWithPinch] = useState<boolean>(true)
@@ -50,9 +52,10 @@ function App() {
 
   useEffect(() => {
     if (!isModelReady) return
-    setTimeout(() => {
+    // Defer to next paint without using setTimeout to avoid long-task violations
+    requestAnimationFrame(() => {
       resizeCanvas()
-    }, 100)
+    })
   }, [isModelReady, resizeCanvas])
 
   // Add resize listener for canvas
@@ -89,20 +92,22 @@ function App() {
 
   // Enhanced hand tracking with better responsiveness
   const startLoop = useCallback(() => {
-    const loop = () => {
+    const runDetection = () => {
       const video = videoRef.current
       const landmarker = handLandmarkerRef.current
       if (!video || !landmarker || video.readyState < 2) {
-        rafRef.current = requestAnimationFrame(loop)
+        // Try again on next animation frame
+        if (rafRef.current) cancelAnimationFrame(rafRef.current)
+        rafRef.current = requestAnimationFrame(runDetection)
         return
       }
-      
-      // REMOVED: resizeCanvasToVideo() - This was clearing the canvas every frame!
       const now = performance.now()
       const result = landmarker.detectForVideo(video, now)
 
       // Draw skeleton overlay for one or two hands
-      const hands = result.landmarks ?? []
+      let hands = result.landmarks ?? []
+      // Filter out unlikely hands to reduce false positives on faces
+      hands = hands.filter((lm) => isLikelyValidHand(lm as any))
       const overlayCanvas = overlayCanvasRef.current
       if (overlayCanvas) {
         const ctx = overlayCanvas.getContext('2d')
@@ -241,11 +246,34 @@ function App() {
         pointsRef.current = []
       }
       
-      rafRef.current = requestAnimationFrame(loop)
+      // Schedule next frame
+      const v = videoRef.current
+      if (v && 'requestVideoFrameCallback' in v) {
+        if (videoFrameCbRef.current != null && 'cancelVideoFrameCallback' in v) {
+          // Safari/WebKit specific API available on some browsers
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore
+          v.cancelVideoFrameCallback(videoFrameCbRef.current)
+        }
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        videoFrameCbRef.current = v.requestVideoFrameCallback(() => runDetection())
+      } else {
+        if (rafRef.current) cancelAnimationFrame(rafRef.current)
+        rafRef.current = requestAnimationFrame(runDetection)
+      }
     }
     
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    rafRef.current = requestAnimationFrame(loop)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    const v = videoRef.current
+    if (v && 'requestVideoFrameCallback' in v) {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      videoFrameCbRef.current = v.requestVideoFrameCallback(() => runDetection())
+    } else {
+      rafRef.current = requestAnimationFrame(runDetection)
+    }
   }, [drawLine])
 
   // Start/stop button handler (defined after startLoop to avoid use-before-define)
@@ -266,11 +294,23 @@ function App() {
 
   // Ensure the render loop picks up latest settings (mode, smoothing, color, size, pressure)
   useEffect(() => {
-    if (!isCameraOn) return
+    const v = videoRef.current
+    // Always cancel any pending callbacks when toggling state
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    if (v && videoFrameCbRef.current != null && 'cancelVideoFrameCallback' in v) {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      v.cancelVideoFrameCallback(videoFrameCbRef.current)
+      videoFrameCbRef.current = null
+    }
+    if (!isCameraOn) return
     startLoop()
   }, [isCameraOn, startLoop, drawingMode, smoothing, drawWithPinch, strokeColor, strokeSize, pressureSensitivity])
 
@@ -285,6 +325,13 @@ function App() {
   useEffect(() => {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      if (timerRef.current) clearTimeout(timerRef.current)
+      const v = videoRef.current
+      if (v && videoFrameCbRef.current != null && 'cancelVideoFrameCallback' in v) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        v.cancelVideoFrameCallback(videoFrameCbRef.current)
+      }
       stopCamera()
       clearCanvas()
     }

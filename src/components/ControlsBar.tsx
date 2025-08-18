@@ -46,8 +46,8 @@ export function ControlsBar({
   return (
     <div className="absolute top-4 left-1/2 -translate-x-1/2 w-full max-w-[95vw] px-4 z-30">
       <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl shadow-soft p-4 flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 overflow-x-auto md:overflow-visible flex-nowrap whitespace-nowrap justify-start md:justify-between">
+          <div className="flex items-center gap-4 shrink-0">
             <button
               onClick={onStartStop}
               disabled={!isModelReady}
@@ -61,7 +61,7 @@ export function ControlsBar({
               Clear Canvas
             </button>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 shrink-0">
             <label className="flex items-center gap-2 text-base text-neutral-200">
               Color
               <input
@@ -116,8 +116,8 @@ export function ControlsBar({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-4 pt-2 border-t border-white/10">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 pt-2 border-t border-white/10 overflow-x-auto md:overflow-visible flex-nowrap whitespace-nowrap justify-start md:justify-between">
+          <div className="flex items-center gap-4 shrink-0">
             <label className="flex items-center gap-2 text-sm text-neutral-300">
               Drawing Mode:
               <select
@@ -159,7 +159,7 @@ export function ControlsBar({
             </label>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 shrink-0">
             <label className="flex items-center gap-2 text-sm text-neutral-300">
               <input
                 id="pressureSensitivity"

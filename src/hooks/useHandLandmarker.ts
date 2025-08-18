@@ -22,6 +22,9 @@ export function useHandLandmarker() {
           baseOptions: { modelAssetPath: modelUrl },
           numHands: 2,
           runningMode: 'VIDEO',
+          minHandDetectionConfidence: 0.4, // raise if still noisy
+          minHandPresenceConfidence: 0.6,
+          minTrackingConfidence: 0.6,
         })
         if (!cancelled) {
           handLandmarkerRef.current = handLandmarker

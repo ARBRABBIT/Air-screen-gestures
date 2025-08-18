@@ -34,6 +34,24 @@ export function normalizedPinchDistance(landmarks: Array<{ x: number; y: number 
   return tipDist / Math.max(1e-5, palmWidth)
 }
 
+// Basic geometric sanity checks to reject false-positive "hands" (e.g., faces)
+export function isLikelyValidHand(landmarks: Array<{ x: number; y: number }>): boolean {
+  if (!landmarks || landmarks.length < 21) return false
+  const wrist = landmarks[0]
+  const indexMCP = landmarks[5]
+  const pinkyMCP = landmarks[17]
+  const indexTip = landmarks[8]
+  const thumbTip = landmarks[4]
+  if (!wrist || !indexMCP || !pinkyMCP || !indexTip || !thumbTip) return false
+  // Palm must be wider than a tiny threshold in normalized space
+  const palmWidth = normalizedDistance(landmarks, 5, 17)
+  if (!(palmWidth > 0.15)) return false
+  // Tips should generally lie above wrist (smaller y in normalized coords)
+  const tipsAboveWrist = (indexTip.y < wrist.y + 0.15) && (thumbTip.y < wrist.y + 0.2)
+  if (!tipsAboveWrist) return false
+  return true
+}
+
 // Normalized distance helper between any two landmarks
 export function normalizedDistance(
   landmarks: Array<{ x: number; y: number }>,

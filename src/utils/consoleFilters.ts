@@ -29,6 +29,11 @@ export function installConsoleFilters(): void {
     /GL version: .*WebGL/i,
     /Graph successfully started running\.?/i,
     /vision_wasm_internal\.js/i,
+    // MediaPipe/TFLite informational warnings
+    /Feedback manager requires a model with a single signature inference/i,
+    /Using NORM_RECT without IMAGE_DIMENSIONS/i,
+    /Created TensorFlow Lite .*XNNPACK delegate/i,
+    /requestAnimationFrame.*handler took/i,
   ]
 
   const original = {
@@ -36,12 +41,14 @@ export function installConsoleFilters(): void {
     info: console.info.bind(console),
     warn: console.warn.bind(console),
     debug: console.debug.bind(console),
+    error: console.error.bind(console),
   }
 
   console.log = createFiltered(original.log, patterns)
   console.info = createFiltered(original.info, patterns)
   console.warn = createFiltered(original.warn, patterns)
   console.debug = createFiltered(original.debug, patterns)
+  console.error = createFiltered(original.error, patterns)
 
   ;(window as any).__consoleFiltersInstalled = true
 }
