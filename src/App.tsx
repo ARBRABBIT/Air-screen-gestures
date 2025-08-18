@@ -267,7 +267,22 @@ function App() {
         <div className="relative w-full max-w-[95vw] h-[85vh] rounded-3xl overflow-hidden shadow-soft bg-neutral-950">
           <video ref={videoRef} className={`absolute inset-0 w-full h-full object-cover opacity-50 z-0 ${mirrored ? 'scale-x-[-1]' : ''}`} playsInline muted></video>
           <canvas ref={canvasRef} className={`absolute inset-0 w-full h-full z-10 pointer-events-none ${mirrored ? 'scale-x-[-1]' : ''}`} />
-          <canvas ref={overlayCanvasRef} className={`absolute inset-0 w-full h-full z-20 pointer-events-none ${mirrored ? 'scale-x-[-1]' : ''}`} />
+          <canvas
+            ref={overlayCanvasRef}
+            className={`absolute inset-0 w-full h-full z-20 pointer-events-none ${mirrored ? 'scale-x-[-1]' : ''} rounded-3xl`}
+          />
+
+          <svg className="pointer-events-none absolute inset-[1px] z-30" width="calc(100% - 2px)" height="calc(100% - 2px)" aria-hidden>
+            <defs>
+              <linearGradient id="multicolor-border" x1="0%" y1="0%" x2="100%" y2="0%">
+                <animateTransform attributeName="gradientTransform" attributeType="XML" type="rotate" from="0 .5 .5" to="360 .5 .5" dur="8s" repeatCount="indefinite" />
+                <stop offset="0%" stopColor="#ff0080" stopOpacity="0.3" />
+                <stop offset="50%" stopColor="#00e5ff" stopOpacity="0.3" />
+                <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.3" />
+              </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="100%" height="100%" rx="23" ry="23" fill="none" stroke="url(#multicolor-border)" strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          </svg>
           
           <StatusIndicators
             isCameraOn={isCameraOn}
