@@ -69,6 +69,39 @@ export function drawLine(
   ctx.restore()
 }
 
+// Draw a smoothed quadratic segment using previous point as control
+export function drawQuadraticSegment(
+  canvas: HTMLCanvasElement,
+  start: Point,
+  control: Point,
+  end: Point,
+  strokeColor: string,
+  strokeSize: number,
+  pressureSensitivity: boolean,
+  pressure: number = 1
+) {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  const effectiveStrokeSize = pressureSensitivity ? strokeSize * pressure : strokeSize
+
+  ctx.save()
+  ctx.strokeStyle = strokeColor
+  ctx.lineWidth = effectiveStrokeSize
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.globalAlpha = 1.0
+  ctx.globalCompositeOperation = 'source-over'
+
+  ctx.beginPath()
+  ctx.moveTo(start.x, start.y)
+  ctx.quadraticCurveTo(control.x, control.y, end.x, end.y)
+  ctx.stroke()
+  ctx.closePath()
+
+  ctx.restore()
+}
+
 export function resizeCanvasToContainer(canvas: HTMLCanvasElement) {
   const container = canvas.parentElement
   if (!container) return
@@ -137,12 +170,14 @@ export function drawHandOverlay(
       ctx.stroke()
     }
 
-    // Draw red dots on all landmarks (smaller for non-tips)
-    for (let i = 0; i < landmarks.length; i++) {
-      const lm = landmarks[i]
+    // Draw dots only for thumb tip (4) and index tip (8)
+    const tipIndices = [4, 8]
+    for (const idx of tipIndices) {
+      const lm = landmarks[idx]
+      if (!lm) continue
       const x = (mirrored ? 1 - lm.x : lm.x) * canvas.width
       const y = lm.y * canvas.height
-      const radius = i % 4 === 0 ? 4 : 3
+      const radius = 4
       ctx.beginPath()
       ctx.arc(x, y, radius, 0, Math.PI * 2)
       ctx.fill()

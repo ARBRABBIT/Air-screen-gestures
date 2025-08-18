@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DrawingMode, Point } from './types'
 import { useHandLandmarker } from './hooks/useHandLandmarker'
 import { useCamera } from './hooks/useCamera'
-import { drawLine as drawLineUtil, resizeCanvasToContainer, drawHandOverlay } from './utils/drawing'
+import { drawLine as drawLineUtil, resizeCanvasToContainer, drawHandOverlay, drawQuadraticSegment } from './utils/drawing'
 import { OneEuroFilter } from './utils/filters'
 import { calculatePressure, isIndexThumbPinching } from './utils/gestures'
 import ControlsBar from './components/ControlsBar'
@@ -30,6 +30,7 @@ function App() {
   const drawingModeRef = useRef<DrawingMode>(drawingMode)
   const drawWithPinchRef = useRef<boolean>(drawWithPinch)
   const pinchStableRef = useRef<{ drawing: boolean; solidFrames: number; hollowFrames: number; lockedToIndex: boolean; nonIndexFrames: number }>({ drawing: false, solidFrames: 0, hollowFrames: 0, lockedToIndex: false, nonIndexFrames: 0 })
+  const pinchNormRef = useRef<number>(1)
 
   useEffect(() => { smoothingRef.current = smoothing }, [smoothing])
   useEffect(() => { drawingModeRef.current = drawingMode }, [drawingMode])
@@ -117,8 +118,8 @@ function App() {
         // Hysteresis-based pinch detection using normalized threshold and ensuring index–thumb only
         let shouldDraw = true
         if (drawWithPinchRef.current) {
-          const { pinching, norm, closestTipIndex } = isIndexThumbPinching(landmarks)
-          const isIndexClosest = closestTipIndex === 8
+          const { pinching: _pinching, norm, closestTipIndex, indexWinsWithMargin } = isIndexThumbPinching(landmarks)
+          const isIndexClosest = closestTipIndex === 8 || indexWinsWithMargin
           const state = pinchStableRef.current
           
           // lock to index if it is closest for a few frames
@@ -128,13 +129,16 @@ function App() {
             state.nonIndexFrames = Math.min(10, state.nonIndexFrames + 1)
           }
 
-          const close = pinching && norm < 0.45
-          const release = !pinching || norm > 0.55 || state.nonIndexFrames >= 3
+          // Smooth the pinch distance to avoid flicker on fast motion
+          pinchNormRef.current = pinchNormRef.current * 0.7 + norm * 0.3
+          const filteredNorm = pinchNormRef.current
+          const close = filteredNorm < 0.43
+          const release = filteredNorm > 0.62 || state.nonIndexFrames >= 3
 
           if (state.drawing) {
             // require a few open frames to stop drawing
             state.hollowFrames = release ? state.hollowFrames + 1 : 0
-            if (state.hollowFrames >= 3) {
+            if (state.hollowFrames >= 4) {
               state.drawing = false
               state.solidFrames = 0
               state.lockedToIndex = false
@@ -142,7 +146,7 @@ function App() {
           } else {
             // require a few closed frames to start drawing
             state.solidFrames = close ? state.solidFrames + 1 : 0
-            if (state.solidFrames >= 3) {
+            if (state.solidFrames >= 4) {
               state.drawing = true
               state.hollowFrames = 0
               state.lockedToIndex = true
@@ -174,11 +178,13 @@ function App() {
           
           // Improved smoothing with configurable alpha
           // Map UI smoothing (0.1 sharp → 0.9 very smooth) to EMA alpha (weight of current)
-          // Higher smoothing = lower alpha = more smoothing
-          const alpha = 1 - smoothingRef.current
+          // Adjust dynamically: when moving faster, increase alpha so the cursor keeps up
+          const baseAlpha = 1 - smoothingRef.current
           const last = lastPointRef.current
           const jitterPixels = Math.max(1.5, Math.min(canvas.width, canvas.height) * 0.002)
           const distanceFromLast = last ? Math.hypot(x - last.x, y - last.y) : Infinity
+          const speedBoost = Math.min(0.6, distanceFromLast / 80) // up to +0.6 when very fast
+          const alpha = Math.min(0.95, baseAlpha + speedBoost)
 
           let candidate: Point = { x, y, pressure }
           if (last && distanceFromLast < jitterPixels) {
@@ -194,11 +200,33 @@ function App() {
             : candidate
           
           if (shouldDraw && last) {
-            drawLine(last, current, pressure, drawingModeRef.current)
+            // Segment long jumps to avoid gaps at high speed
+            const maxStep = Math.max(6, Math.min(canvas.width, canvas.height) * 0.01)
+            const totalDist = Math.hypot(current.x - last.x, current.y - last.y)
+            const steps = Math.max(1, Math.ceil(totalDist / maxStep))
+
+            let fromPoint = last
+            for (let i = 1; i <= steps; i++) {
+              const t = i / steps
+              const segPoint: Point = {
+                x: last.x + (current.x - last.x) * t,
+                y: last.y + (current.y - last.y) * t,
+                pressure,
+              }
+              const prev = pointsRef.current[pointsRef.current.length - 1]
+              const usingCurve = prev && Math.hypot(fromPoint.x - segPoint.x, fromPoint.y - segPoint.y) < 40
+              const mode = drawingModeRef.current
+              if (usingCurve && mode === 'pen') {
+                drawQuadraticSegment(canvas, prev, fromPoint, segPoint, strokeColor, strokeSize, pressureSensitivity, pressure)
+              } else {
+                drawLine(fromPoint, segPoint, pressure, mode)
+              }
+              fromPoint = segPoint
+            }
             pointsRef.current.push(current)
             
             // Keep only recent points for smooth curves
-            if (pointsRef.current.length > 10) {
+            if (pointsRef.current.length > 20) {
               pointsRef.current.shift()
             }
           } else {

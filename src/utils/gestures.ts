@@ -60,19 +60,35 @@ export function isIndexThumbPinching(landmarks: Array<{ x: number; y: number }>)
   pinching: boolean
   norm: number
   closestTipIndex: number | null
+  indexWinsWithMargin: boolean
 } {
-  // Landmark indices: thumb tip 4, index tip 8, middle 12, ring 16, pinky 20
-  const distances: Array<{ tipIndex: number; norm: number }> = [8, 12, 16, 20].map((tipIndex) => ({ tipIndex, norm: normalizedDistance(landmarks, 4, tipIndex) }))
+  // Distances from thumb tip (4) to each fingertip
+  const indexDist = normalizedDistance(landmarks, 4, 8)
+  const middleDist = normalizedDistance(landmarks, 4, 12)
+  const ringDist = normalizedDistance(landmarks, 4, 16)
+  const pinkyDist = normalizedDistance(landmarks, 4, 20)
 
-  const closest = distances.reduce((min, cur) => (cur.norm < min.norm ? cur : min), {
+  const pairs = [
+    { tipIndex: 8, norm: indexDist },
+    { tipIndex: 12, norm: middleDist },
+    { tipIndex: 16, norm: ringDist },
+    { tipIndex: 20, norm: pinkyDist },
+  ]
+
+  const closest = pairs.reduce((min, cur) => (cur.norm < min.norm ? cur : min), {
     tipIndex: null as unknown as number,
     norm: Number.POSITIVE_INFINITY,
   })
 
-  const closeThreshold = 0.40
-  const pinching = closest.tipIndex === 8 && closest.norm < closeThreshold
+  // Consider index “closest enough” if within a small margin of the closest finger
+  const margin = 0.06
+  const minOther = Math.min(middleDist, ringDist, pinkyDist)
+  const indexWinsWithMargin = indexDist <= minOther + margin
 
-  return { pinching, norm: closest.norm, closestTipIndex: closest.tipIndex }
+  const closeThreshold = 0.42
+  const pinching = indexDist < closeThreshold
+
+  return { pinching, norm: indexDist, closestTipIndex: closest.tipIndex, indexWinsWithMargin }
 }
 
 export function calculatePressure(

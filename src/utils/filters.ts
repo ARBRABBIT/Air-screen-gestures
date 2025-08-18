@@ -45,8 +45,8 @@ export class OneEuroFilter {
     const dAlpha = smoothingFactor(frequencyHz, this.dCutoffHz)
     const derivativeHat = exponentialSmoothing(dAlpha, derivative, this.lastDerivative)
 
-    // Adapt cutoff based on signal speed
-    const cutoff = this.minCutoffHz + this.beta * Math.abs(derivativeHat)
+    // Adapt cutoff based on signal speed, with cap to avoid over-reacting at very high speeds
+    const cutoff = this.minCutoffHz + this.beta * Math.min(4, Math.abs(derivativeHat))
     const alpha = smoothingFactor(frequencyHz, cutoff)
     const filteredValue = exponentialSmoothing(alpha, value, this.lastValue)
 
