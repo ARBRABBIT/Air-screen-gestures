@@ -5,16 +5,13 @@ export function useHandLandmarker() {
   const [isModelReady, setIsModelReady] = useState(false)
   const handLandmarkerRef = useRef<HandLandmarker | null>(null)
 
-  const wasmBaseUrl = useMemo(
-    () => 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm',
-    []
-  )
+  const wasmBaseUrl = useMemo(() => (
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+  ), [])
 
-  const modelUrl = useMemo(
-    () =>
-      'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
-    []
-  )
+  const modelUrl = useMemo(() => (
+    'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
+  ), [])
 
   useEffect(() => {
     let cancelled = false
@@ -37,7 +34,9 @@ export function useHandLandmarker() {
     })()
     return () => {
       cancelled = true
-      handLandmarkerRef.current?.close()
+      // Close only once
+      const instance = handLandmarkerRef.current
+      if (instance) instance.close()
       handLandmarkerRef.current = null
     }
   }, [modelUrl, wasmBaseUrl])

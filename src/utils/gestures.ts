@@ -4,8 +4,7 @@ import type { MutableRefObject, RefObject } from 'react'
 export function isPinching(indexTip: { x: number; y: number }, thumbTip: { x: number; y: number }) {
   const dx = indexTip.x - thumbTip.x
   const dy = indexTip.y - thumbTip.y
-  const dist = Math.hypot(dx, dy)
-  return dist < 0.08
+  return Math.hypot(dx, dy) < 0.08
 }
 
 function distance(a: { x: number; y: number }, b: { x: number; y: number }) {
@@ -63,10 +62,7 @@ export function isIndexThumbPinching(landmarks: Array<{ x: number; y: number }>)
   closestTipIndex: number | null
 } {
   // Landmark indices: thumb tip 4, index tip 8, middle 12, ring 16, pinky 20
-  const distances: Array<{ tipIndex: number; norm: number }> = [8, 12, 16, 20].map((tipIndex) => ({
-    tipIndex,
-    norm: normalizedDistance(landmarks, 4, tipIndex),
-  }))
+  const distances: Array<{ tipIndex: number; norm: number }> = [8, 12, 16, 20].map((tipIndex) => ({ tipIndex, norm: normalizedDistance(landmarks, 4, tipIndex) }))
 
   const closest = distances.reduce((min, cur) => (cur.norm < min.norm ? cur : min), {
     tipIndex: null as unknown as number,

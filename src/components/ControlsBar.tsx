@@ -65,6 +65,8 @@ export function ControlsBar({
             <label className="flex items-center gap-2 text-base text-neutral-200">
               Color
               <input
+                id="strokeColor"
+                name="strokeColor"
                 type="color"
                 value={strokeColor}
                 onChange={(e) => onChangeColor(e.target.value)}
@@ -75,6 +77,8 @@ export function ControlsBar({
             <label className="flex items-center gap-2 text-base text-neutral-200">
               Size
               <input
+                id="strokeSize"
+                name="strokeSize"
                 type="range"
                 min={2}
                 max={32}
@@ -87,6 +91,8 @@ export function ControlsBar({
             </label>
             <label className="flex items-center gap-2 text-base text-neutral-200">
               <input
+                id="drawWithPinch"
+                name="drawWithPinch"
                 type="checkbox"
                 checked={drawWithPinch}
                 onChange={(e) => onTogglePinch(e.target.checked)}
@@ -97,6 +103,8 @@ export function ControlsBar({
             </label>
             <label className="flex items-center gap-2 text-base text-neutral-200">
               <input
+                id="mirror"
+                name="mirror"
                 type="checkbox"
                 checked={mirrored}
                 onChange={(e) => onToggleMirror(e.target.checked)}
@@ -113,6 +121,8 @@ export function ControlsBar({
             <label className="flex items-center gap-2 text-sm text-neutral-300">
               Drawing Mode:
               <select
+                id="drawingMode"
+                name="drawingMode"
                 value={drawingMode}
                 onChange={(e) => onChangeMode(e.target.value as DrawingMode)}
                 className="px-3 py-2 rounded-lg bg-white/20 border border-white/30 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-white/30 transition-colors dropdown"
@@ -127,6 +137,8 @@ export function ControlsBar({
               Smoothing:
               <div className="flex items-center gap-2">
                 <input
+                  id="smoothing"
+                  name="smoothing"
                   type="range"
                   min={0.1}
                   max={0.9}
@@ -150,6 +162,8 @@ export function ControlsBar({
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 text-sm text-neutral-300">
               <input
+                id="pressureSensitivity"
+                name="pressureSensitivity"
                 type="checkbox"
                 checked={pressureSensitivity}
                 onChange={(e) => onTogglePressure(e.target.checked)}

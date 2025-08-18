@@ -7,11 +7,12 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
 
   const stopCamera = useCallback(() => {
     const video = videoRef.current
-    if (video && video.srcObject) {
-      const stream = video.srcObject as MediaStream
-      for (const track of stream.getTracks()) track.stop()
-      video.srcObject = null
+    const stream = (video?.srcObject as MediaStream | null) ?? null
+    if (stream) {
+      const tracks = stream.getTracks()
+      for (let i = 0; i < tracks.length; i++) tracks[i].stop()
     }
+    if (video) video.srcObject = null
     setIsCameraOn(false)
   }, [videoRef])
 
@@ -37,9 +38,9 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
 
       video.srcObject = stream
 
-      await new Promise((resolve) => {
-        video.onloadedmetadata = resolve
-        video.onerror = () => resolve(null)
+      await new Promise<void>((resolve) => {
+        video.onloadedmetadata = () => resolve()
+        video.onerror = () => resolve()
       })
 
       await video.play()

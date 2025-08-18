@@ -97,7 +97,8 @@ function App() {
       }
       
       // REMOVED: resizeCanvasToVideo() - This was clearing the canvas every frame!
-      const result = landmarker.detectForVideo(video, performance.now())
+      const now = performance.now()
+      const result = landmarker.detectForVideo(video, now)
 
       // Draw skeleton overlay for one or two hands
       const hands = result.landmarks ?? []
@@ -164,7 +165,7 @@ function App() {
 
           // Apply One Euro filter in normalized space
           const filters = euroFiltersRef.current
-          const t = performance.now() / 1000
+          const t = now / 1000
           const filteredXNorm = filters ? filters.x.filter(avgXNorm, t) : avgXNorm
           const filteredYNorm = filters ? filters.y.filter(avgYNorm, t) : avgYNorm
 

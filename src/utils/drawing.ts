@@ -62,14 +62,11 @@ export function drawLine(
 
   ctx.restore()
 
-  // Trigger a subtle repaint
-  const ctx2 = canvas.getContext('2d')
-  if (ctx2) {
-    ctx2.save()
-    ctx2.globalAlpha = 0.01
-    ctx2.fillRect(0, 0, 1, 1)
-    ctx2.restore()
-  }
+  // Trigger a subtle repaint without fetching a new context
+  ctx.save()
+  ctx.globalAlpha = 0.01
+  ctx.fillRect(0, 0, 1, 1)
+  ctx.restore()
 }
 
 export function resizeCanvasToContainer(canvas: HTMLCanvasElement) {
