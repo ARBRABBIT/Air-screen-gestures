@@ -45,9 +45,10 @@ export function isLikelyValidHand(landmarks: Array<{ x: number; y: number }>): b
   if (!wrist || !indexMCP || !pinkyMCP || !indexTip || !thumbTip) return false
   // Palm must be wider than a tiny threshold in normalized space
   const palmWidth = normalizedDistance(landmarks, 5, 17)
-  if (!(palmWidth > 0.15)) return false
+  // Relax threshold slightly for mobile cameras where FOV/scale varies
+  if (!(palmWidth > 0.12)) return false
   // Tips should generally lie above wrist (smaller y in normalized coords)
-  const tipsAboveWrist = (indexTip.y < wrist.y + 0.15) && (thumbTip.y < wrist.y + 0.2)
+  const tipsAboveWrist = (indexTip.y < wrist.y + 0.2) && (thumbTip.y < wrist.y + 0.25)
   if (!tipsAboveWrist) return false
   return true
 }

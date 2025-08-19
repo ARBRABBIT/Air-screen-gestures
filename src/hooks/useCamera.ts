@@ -18,17 +18,32 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
 
   const startCamera = useCallback(async () => {
     try {
-      const permissions = await navigator.permissions.query({ name: 'camera' as PermissionName })
-      if (permissions.state === 'denied') {
-        alert('Camera permission denied. Please allow camera access in your browser settings.')
-        return false
+      // Some browsers (notably iOS Safari) do not support Permissions API for camera.
+      // Gracefully skip the explicit check there and rely on getUserMedia to prompt.
+      try {
+        // @ts-expect-error - types don't reflect partial support across browsers
+        if (navigator.permissions && navigator.permissions.query) {
+          const permissions = await navigator.permissions.query({ name: 'camera' as PermissionName })
+          if (permissions.state === 'denied') {
+            alert('Camera permission denied. Please allow camera access in your browser settings.')
+            return false
+          }
+        }
+      } catch (_) {
+        // Ignore unsupported Permissions API
       }
+
+      // Prefer modest defaults on mobile for performance and compatibility
+      const isSmallScreen = Math.min(window.innerWidth, window.innerHeight) < 800
+      const idealWidth = isSmallScreen ? 640 : 1280
+      const idealHeight = isSmallScreen ? 480 : 720
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: idealWidth },
+          height: { ideal: idealHeight },
+          frameRate: { ideal: 30, max: 30 },
         },
         audio: false
       })
@@ -37,6 +52,9 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
       if (!video) return false
 
       video.srcObject = stream
+      // Ensure inline playback on iOS Safari
+      // @ts-expect-error playsInline property exists on HTMLVideoElement at runtime
+      video.playsInline = true
 
       await new Promise<void>((resolve) => {
         video.onloadedmetadata = () => resolve()

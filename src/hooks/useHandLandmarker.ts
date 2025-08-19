@@ -18,13 +18,16 @@ export function useHandLandmarker() {
     ;(async () => {
       try {
         const vision = await FilesetResolver.forVisionTasks(wasmBaseUrl)
+        const isSmallScreen = Math.min(window.innerWidth, window.innerHeight) < 800
         const handLandmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: { modelAssetPath: modelUrl },
-          numHands: 2,
+          // Mobile devices struggle with 2-hand tracking; prefer 1 for stability/perf
+          numHands: isSmallScreen ? 1 : 2,
           runningMode: 'VIDEO',
-          minHandDetectionConfidence: 0.4, // raise if still noisy
-          minHandPresenceConfidence: 0.6,
-          minTrackingConfidence: 0.6,
+          // Slightly relax thresholds on mobile for more consistent detection
+          minHandDetectionConfidence: isSmallScreen ? 0.3 : 0.4,
+          minHandPresenceConfidence: isSmallScreen ? 0.5 : 0.6,
+          minTrackingConfidence: isSmallScreen ? 0.5 : 0.6,
         })
         if (!cancelled) {
           handLandmarkerRef.current = handLandmarker

@@ -19,6 +19,7 @@ function App() {
   const pointsRef = useRef<Point[]>([])
   const timerRef = useRef<number | null>(null)
   const videoFrameCbRef = useRef<number | null>(null)
+  const lastProcessedRef = useRef<number>(0)
   const [strokeColor, setStrokeColor] = useState<string>('#00E5FF')
   const [strokeSize, setStrokeSize] = useState<number>(6)
   const [drawWithPinch, setDrawWithPinch] = useState<boolean>(true)
@@ -33,6 +34,9 @@ function App() {
   const drawWithPinchRef = useRef<boolean>(drawWithPinch)
   const pinchStableRef = useRef<{ drawing: boolean; solidFrames: number; hollowFrames: number; lockedToIndex: boolean; nonIndexFrames: number }>({ drawing: false, solidFrames: 0, hollowFrames: 0, lockedToIndex: false, nonIndexFrames: 0 })
   const pinchNormRef = useRef<number>(1)
+  const isSmallScreen = Math.min(window.innerWidth, window.innerHeight) < 800
+  const processIntervalMsRef = useRef<number>(isSmallScreen ? 40 : 16) // ~25fps on small screens, ~60fps otherwise
+  const showOverlayRef = useRef<boolean>(!isSmallScreen)
 
   useEffect(() => { smoothingRef.current = smoothing }, [smoothing])
   useEffect(() => { drawingModeRef.current = drawingMode }, [drawingMode])
@@ -102,6 +106,21 @@ function App() {
         return
       }
       const now = performance.now()
+      // Throttle processing on small screens to reduce CPU/GPU load
+      if (now - lastProcessedRef.current < processIntervalMsRef.current) {
+        // schedule next frame without processing
+        const v = videoRef.current
+        if (v && 'requestVideoFrameCallback' in v) {
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore
+          videoFrameCbRef.current = v.requestVideoFrameCallback(() => runDetection())
+        } else {
+          if (rafRef.current) cancelAnimationFrame(rafRef.current)
+          rafRef.current = requestAnimationFrame(runDetection)
+        }
+        return
+      }
+      lastProcessedRef.current = now
       const result = landmarker.detectForVideo(video, now)
 
       // Draw skeleton overlay for one or two hands
@@ -109,7 +128,7 @@ function App() {
       // Filter out unlikely hands to reduce false positives on faces
       hands = hands.filter((lm) => isLikelyValidHand(lm as any))
       const overlayCanvas = overlayCanvasRef.current
-      if (overlayCanvas) {
+      if (overlayCanvas && showOverlayRef.current) {
         const ctx = overlayCanvas.getContext('2d')
         if (ctx) ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height)
         if (hands.length > 0) drawHandOverlay(overlayCanvas, hands)
@@ -206,7 +225,9 @@ function App() {
           
           if (shouldDraw && last) {
             // Segment long jumps to avoid gaps at high speed
-            const maxStep = Math.max(6, Math.min(canvas.width, canvas.height) * 0.01)
+            const maxStep = isSmallScreen
+              ? Math.max(8, Math.min(canvas.width, canvas.height) * 0.015)
+              : Math.max(6, Math.min(canvas.width, canvas.height) * 0.01)
             const totalDist = Math.hypot(current.x - last.x, current.y - last.y)
             const steps = Math.max(1, Math.ceil(totalDist / maxStep))
 
