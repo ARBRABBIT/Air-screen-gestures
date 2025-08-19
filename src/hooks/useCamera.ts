@@ -21,7 +21,6 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
       // Some browsers (notably iOS Safari) do not support Permissions API for camera.
       // Gracefully skip the explicit check there and rely on getUserMedia to prompt.
       try {
-        // @ts-expect-error - types don't reflect partial support across browsers
         if (navigator.permissions && navigator.permissions.query) {
           const permissions = await navigator.permissions.query({ name: 'camera' as PermissionName })
           if (permissions.state === 'denied') {
@@ -53,7 +52,6 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
 
       video.srcObject = stream
       // Ensure inline playback on iOS Safari
-      // @ts-expect-error playsInline property exists on HTMLVideoElement at runtime
       video.playsInline = true
 
       await new Promise<void>((resolve) => {
